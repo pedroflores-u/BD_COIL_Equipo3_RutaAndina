@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RutaAndina — Acceso</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="navbar">
+    <h1>RutaAndina <span class="badge-pais">Perú · Colombia</span></h1>
+  </div>
+
+  <div class="container" style="max-width: 500px; margin-top: 40px;">
+    <div class="card">
+      <h2>Iniciar Sesión</h2>
+      <form id="formLogin">
+        <div class="form-group">
+          <label>Correo electrónico (Pasajero / Conductor) o RUC / NIT (Empresa):</label>
+          <input type="text" id="identificador" placeholder="ej. carlos@mail.com" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Continuar</button>
+      </form>
+
+      <!-- Acceso rápido para pruebas del equipo -->
+      <div class="demo-bar">
+        <span>Perfiles de prueba rápidos (Demo):</span>
+        <div class="demo-pills">
+          <button type="button" class="pill-btn" onclick="accesoRapido('carlos@mail.com')">Pasajero Perú</button>
+          <button type="button" class="pill-btn" onclick="accesoRapido('santiago.g@mail.co')">Pasajero Colombia</button>
+          <button type="button" class="pill-btn" onclick="accesoRapido('luis@mail.com')">Conductor Perú</button>
+          <button type="button" class="pill-btn" onclick="accesoRapido('20559876543')">Empresa TechAndes</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Crear Cuenta de Pasajero</h2>
+      <form id="formRegistro">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombres:</label>
+            <input type="text" id="regNombre" required>
+          </div>
+          <div class="form-group">
+            <label>Apellidos:</label>
+            <input type="text" id="regApellido" required>
+          </div>
+          <div class="form-group">
+            <label>DNI / Cédula:</label>
+            <input type="text" id="regDocumento" required>
+          </div>
+          <div class="form-group">
+            <label>Teléfono:</label>
+            <input type="text" id="regTelefono" required>
+          </div>
+          <div class="form-group">
+            <label>Correo electrónico:</label>
+            <input type="email" id="regCorreo" required>
+          </div>
+          <div class="form-group">
+            <label>País de operación:</label>
+            <select id="regPais">
+              <option value="Perú">Perú (PEN)</option>
+              <option value="Colombia">Colombia (COP)</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-success" style="width: 100%; margin-top: 6px;">Registrarme</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function accesoRapido(credencial) {
+      document.getElementById('identificador').value = credencial;
+      document.getElementById('formLogin').dispatchEvent(new Event('submit'));
+    }
+
+    document.getElementById('formLogin').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const identificador = document.getElementById('identificador').value;
+
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identificador })
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+
+      localStorage.setItem('usuarioRutaAndina', JSON.stringify(data));
+      window.location.href = `${data.rol}.html`;
+    });
+
+    document.getElementById('formRegistro').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = {
+        nombre: document.getElementById('regNombre').value,
+        apellido: document.getElementById('regApellido').value,
+        documento: document.getElementById('regDocumento').value,
+        telefono: document.getElementById('regTelefono').value,
+        correo: document.getElementById('regCorreo').value,
+        pais: document.getElementById('regPais').value
+      };
+
+      const res = await fetch('/api/pasajeros', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (!res.ok) return alert(data.error);
+
+      alert('Cuenta registrada. Iniciando sesión...');
+      accesoRapido(body.correo);
+    });
+  </script>
+</body>
+</html>

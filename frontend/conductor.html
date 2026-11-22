@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RutaAndina — Conductor</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="navbar">
+    <h1>RutaAndina <span class="badge-pais" id="infoConductor"></span></h1>
+    <button class="btn btn-danger btn-sm" onclick="cerrarSesion()">Cerrar Sesión</button>
+  </div>
+
+  <div class="container">
+    <!-- Alerta de cumplimiento de reglas de negocio (Licencia / SOAT) -->
+    <div class="card" id="cardDocumentos" style="padding: 16px 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+        <div>
+          <strong>Estado Operativo y Documentación:</strong>
+          <span id="textoDocs" style="margin-left: 8px; font-size: 0.9rem;"></span>
+        </div>
+        <span id="badgeDocs" class="estado"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Solicitudes Cercanas <button class="btn btn-primary btn-sm" onclick="cargarTodo()">Actualizar</button></h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Pasajero</th>
+              <th>Origen</th>
+              <th>Destino</th>
+              <th>Tarifa</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tablaPendientes"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Mis Viajes Asignados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Pasajero</th>
+              <th>Ruta</th>
+              <th>Tarifa</th>
+              <th>Estado</th>
+              <th>Gestión / Calificar Pasajero</th>
+            </tr>
+          </thead>
+          <tbody id="tablaMisViajes"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    const user = verificarAcceso('conductor');
+    document.getElementById('infoConductor').textContent = `${user.nombre} · ${user.pais}`;
+
+    // Verificar si la licencia o seguro están vencidos o conductor suspendido
+    const hoy = new Date().toISOString().split('T')[0];
+    const licVencida = user.venc_licencia && user.venc_licencia.split('T')[0] < hoy;
+    const segVencido = user.venc_seguro && user.venc_seguro.split('T')[0] < hoy;
+    const bloqueado = user.estado !== 'Activo' || licVencida || segVencido;
+
+    const badgeDocs = document.getElementById('badgeDocs');
+    const textoDocs = document.getElementById('textoDocs');
+
+    if (bloqueado) {
+      badgeDocs.textContent = 'BLOQUEADO';
+      badgeDocs.className = 'estado cancelado';
+      textoDocs.textContent = `Conductor ${user.estado} — Licencia o SOAT vencido. No puede aceptar viajes.`;
+    } else {
+      badgeDocs.textContent = 'HABILITADO';
+      badgeDocs.className = 'estado finalizado';
+      textoDocs.textContent = `Licencia y Seguro SOAT vigentes.`;
+    }
+
+    async function cambiarEstado(idViaje, nuevoEstado) {
+      await fetch(`/api/viajes/${idViaje}/estado`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nuevo_estado: nuevoEstado, id_conductor: user.id })
+      });
+      cargarTodo();
+    }
+
+    async function calificarPasajero(idViaje, puntaje) {
+      await fetch(`/api/viajes/${idViaje}/calificar`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puntaje, emisor: 'CONDUCTOR' })
+      });
+      cargarTodo();
+    }
+
+    async function cargarTodo() {
+      // Pendientes
+      const resP = await fetch('/api/viajes/pendientes');
+      const pendientes = await resP.json();
+      const tbodyP = document.getElementById('tablaPendientes');
+      tbodyP.innerHTML = pendientes.length === 0
+        ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">Sin solicitudes pendientes</td></tr>'
+        : pendientes.map(v => `
+            <tr>
+              <td>#${v.id_viaje}</td>
+              <td>${v.nombre_pasajero}</td>
+              <td>${v.origen}</td>
+              <td>${v.destino}</td>
+              <td><strong>${v.tarifa} ${v.moneda}</strong></td>
+              <td>
+                <button class="btn btn-success btn-sm" ${bloqueado ? 'disabled' : ''} onclick="cambiarEstado(${v.id_viaje}, 'aceptado')">
+                  Aceptar
+                </button>
+              </td>
+            </tr>`).join('');
+
+      // Asignados
+      const resM = await fetch(`/api/viajes/conductor/${user.id}`);
+      const misViajes = await resM.json();
+      const tbodyM = document.getElementById('tablaMisViajes');
+      tbodyM.innerHTML = misViajes.map(v => {
+        let accion = '';
+        if (v.estado === 'aceptado') {
+          accion = `<button class="btn btn-primary btn-sm" onclick="cambiarEstado(${v.id_viaje}, 'en curso')">Iniciar Viaje</button>`;
+        } else if (v.estado === 'en curso') {
+          accion = `<button class="btn btn-success btn-sm" onclick="cambiarEstado(${v.id_viaje}, 'finalizado')">Finalizar Viaje</button>`;
+        } else if (v.estado === 'finalizado') {
+          accion = v.calificacion_conductor
+            ? `<span style="color:var(--accent);">Pasajero calificado: ★ ${v.calificacion_conductor}/5</span>`
+            : `<select onchange="calificarPasajero(${v.id_viaje}, this.value)" style="width:auto; padding:4px 8px;">
+                 <option value="">Calificar pasajero</option>
+                 <option value="5">5 ★</option>
+                 <option value="4">4 ★</option>
+                 <option value="3">3 ★</option>
+               </select>`;
+        }
+
+        return `
+          <tr>
+            <td>#${v.id_viaje}</td>
+            <td>${v.nombre_pasajero}</td>
+            <td>${v.origen} → ${v.destino}</td>
+            <td><strong>${v.tarifa} ${v.moneda}</strong></td>
+            <td><span class="estado ${v.estado.replace(' ', '-')}">${v.estado}</span></td>
+            <td>${accion}</td>
+          </tr>`;
+      }).join('');
+    }
+
+    cargarTodo();
+  </script>
+</body>
+</html>

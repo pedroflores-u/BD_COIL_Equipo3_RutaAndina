@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>RutaAndina — Portal Corporativo</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="navbar">
+    <h1>RutaAndina <span class="badge-pais" id="infoEmpresa"></span></h1>
+    <button class="btn btn-danger btn-sm" onclick="cerrarSesion()">Cerrar Sesión</button>
+  </div>
+
+  <div class="container">
+    <div class="card" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+      <div>
+        <h2 style="border: none; margin: 0; padding: 0;">Consumo Mensual Corporativo</h2>
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 4px;">Facturación consolidada de empleados afiliados</p>
+      </div>
+      <div style="text-align: right;">
+        <span id="totalMensual" style="font-size: 2rem; font-weight: 700; color: var(--green);">0.00</span>
+        <p id="cantidadViajes" style="color: var(--text-muted); font-size: 0.85rem;">0 viajes registrados</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Detalle de Viajes Corporativos</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Empleado</th>
+              <th>Origen</th>
+              <th>Destino</th>
+              <th>Estado</th>
+              <th>Monto</th>
+            </tr>
+          </thead>
+          <tbody id="tablaCorporativa"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="auth.js"></script>
+  <script>
+    const user = verificarAcceso('empresa');
+    document.getElementById('infoEmpresa').textContent = `${user.nombre} · ${user.pais}`;
+
+    async function cargarConsumo() {
+      const res = await fetch(`/api/empresa/${user.id}/consumo`);
+      const data = await res.json();
+
+      document.getElementById('totalMensual').textContent = `${data.total_mensual} ${user.moneda}`;
+      document.getElementById('cantidadViajes').textContent = `${data.viajes.length} viajes corporativos`;
+
+      document.getElementById('tablaCorporativa').innerHTML = data.viajes.map(v => `
+        <tr>
+          <td>#${v.id_viaje}</td>
+          <td>${v.nombre_pasajero}</td>
+          <td>${v.origen}</td>
+          <td>${v.destino}</td>
+          <td><span class="estado ${v.estado.replace(' ', '-')}">${v.estado}</span></td>
+          <td><strong>${v.tarifa} ${v.moneda}</strong></td>
+        </tr>`).join('');
+    }
+
+    cargarConsumo();
+  </script>
+</body>
+</html>
